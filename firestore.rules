@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.verified_pioneer == true;
+    }
+
+    // All writes are executed authoritatively by FastAPI (Firebase Admin SDK).
+    // Clients receive read-only real-time updates via onSnapshot listeners.
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /matches/{matchId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participant_uids;
+      allow write: if false;
+
+      match /chat/{messageId} {
+        allow read: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/matches/$(matchId)).data.participant_uids;
+        allow write: if false;
+      }
+    }
+
+    match /challenges/{code} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /matchmaking_queue/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    match /endorsements/{endorsementId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /reports/{reportId} {
+      allow read: if isSignedIn() && request.auth.token.role in ['moderator', 'admin'];
+      allow write: if false;
+    }
+  }
+}
