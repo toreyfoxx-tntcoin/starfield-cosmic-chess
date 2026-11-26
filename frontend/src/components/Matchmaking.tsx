@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 interface MatchmakingProps {
   onMatchFound: (matchId: string) => void;
@@ -13,14 +14,43 @@ interface MatchmakingProps {
 
 type MatchMode = 'correspondence_24h' | 'live_10m';
 
+interface ActiveMatchItem {
+  id: string;
+  mode: MatchMode;
+  turn: 'w' | 'b';
+  players: {
+    white: { uid: string; username: string };
+    black: { uid: string; username: string };
+  };
+}
+
 export function Matchmaking({ onMatchFound }: MatchmakingProps) {
   const { user } = useAuth();
   const [mode, setMode] = useState<MatchMode>('correspondence_24h');
   const [searching, setSearching] = useState(false);
+  const [activeMatches, setActiveMatches] = useState<ActiveMatchItem[]>([]);
   const [challengeCode, setChallengeCode] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+
+  // Live list of ongoing active matches ("Your Turn!" priority)
+  useEffect(() => {
+    if (!db || !user) return;
+    const q = query(
+      collection(db, 'matches'),
+      where('participant_uids', 'array-contains', user.uid),
+      where('status', '==', 'active'),
+      orderBy('updated_at', 'desc'),
+      limit(10)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setActiveMatches(
+        snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ActiveMatchItem, 'id'>) }))
+      );
+    });
+    return () => unsub();
+  }, [user]);
 
   // Listen for newly assigned active match while searching
   useEffect(() => {
@@ -117,6 +147,43 @@ export function Matchmaking({ onMatchFound }: MatchmakingProps) {
           Play verified Pioneers in 24-hour Correspondence or 10-minute Live Rapid matches.
         </p>
       </div>
+
+      {/* Active Matches ("Your Turn!" Priority) */}
+      {activeMatches.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-300">
+            Active Matches ({activeMatches.length})
+          </h3>
+          <div className="space-y-2">
+            {activeMatches.map((m) => {
+              const amWhite = m.players.white.uid === user?.uid;
+              const oppName = amWhite ? m.players.black.username : m.players.white.username;
+              const myTurn = (m.turn === 'w' && amWhite) || (m.turn === 'b' && !amWhite);
+              return (
+                <div
+                  key={m.id}
+                  className="flex items-center justify-between gap-2 p-3 rounded-xl bg-slate-800/80 border border-cyan-500/20"
+                >
+                  <div>
+                    <div className="font-semibold text-sm text-white">vs @{oppName}</div>
+                    <div className="text-xs text-slate-400">
+                      {m.mode === 'correspondence_24h' ? '24h Correspondence' : '10m Live Rapid'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={myTurn ? 'bg-emerald-600' : 'bg-slate-700'}>
+                      {myTurn ? 'Your Turn!' : 'Waiting'}
+                    </Badge>
+                    <Button size="sm" onClick={() => onMatchFound(m.id)} className="bg-cyan-600 hover:bg-cyan-500">
+                      Open
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Time Control Selector */}
       <div className="grid grid-cols-2 gap-3">

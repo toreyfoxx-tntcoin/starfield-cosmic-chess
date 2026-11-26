@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MainMenu } from './MainMenu';
 import { GameScreen } from './GameScreen';
+import { OnlineMatchScreen } from './OnlineMatchScreen';
 import { CollectionScreen } from './CollectionScreen';
 import { TutorialScreen } from './TutorialScreen';
 import { ProgressionScreen } from './ProgressionScreen';
@@ -15,6 +16,7 @@ import { AIDifficulty } from '@/utils/aiOpponent';
 type Screen =
   | 'menu'
   | 'game'
+  | 'online-match'
   | 'collection'
   | 'tutorial'
   | 'progression'
@@ -56,8 +58,15 @@ const AppLayout: React.FC = () => {
       {currentScreen === 'game' && (
         <GameScreen
           onBack={() => setCurrentScreen('menu')}
-          vsAI={!activeMatchId}
+          vsAI={true}
           aiDifficulty={aiDifficulty}
+        />
+      )}
+
+      {currentScreen === 'online-match' && activeMatchId && (
+        <OnlineMatchScreen
+          matchId={activeMatchId}
+          onBack={() => setCurrentScreen('multiplayer')}
         />
       )}
 
@@ -85,7 +94,7 @@ const AppLayout: React.FC = () => {
             <Matchmaking
               onMatchFound={(id) => {
                 setActiveMatchId(id);
-                setCurrentScreen('game');
+                setCurrentScreen('online-match');
               }}
             />
           </div>
