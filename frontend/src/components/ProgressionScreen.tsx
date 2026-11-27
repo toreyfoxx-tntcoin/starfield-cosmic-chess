@@ -15,7 +15,12 @@ export const ProgressionScreen: React.FC<{ onBack: () => void }> = ({ onBack }) 
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 md:p-8 max-w-4xl mx-auto space-y-6">
-      <Button onClick={onBack} variant="outline">← Back to Command Deck</Button>
+      <Button
+        onClick={onBack}
+        className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-600"
+      >
+        ← Back to Command Deck
+      </Button>
 
       <div>
         <h1 className="text-3xl font-bold text-cyan-400">Commander Profile &amp; Reputation</h1>

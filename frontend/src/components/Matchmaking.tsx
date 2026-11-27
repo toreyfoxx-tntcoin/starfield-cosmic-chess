@@ -225,7 +225,7 @@ export function Matchmaking({ onMatchFound }: MatchmakingProps) {
             <div className="animate-pulse text-cyan-300 font-medium">
               Scanning star sectors for an opponent...
             </div>
-            <Button onClick={handleCancel} variant="outline" className="w-full">
+            <Button onClick={handleCancel} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white">
               Cancel Search
             </Button>
           </div>
@@ -238,7 +238,7 @@ export function Matchmaking({ onMatchFound }: MatchmakingProps) {
           Challenge a Friend (Share in Pi Chats)
         </h3>
         <div className="flex gap-2">
-          <Button onClick={handleCreateChallenge} variant="outline" className="border-cyan-500/40 text-cyan-200">
+          <Button onClick={handleCreateChallenge} className="bg-slate-800 hover:bg-slate-700 border border-cyan-500/50 text-cyan-200">
             Generate Code
           </Button>
           {challengeCode && (

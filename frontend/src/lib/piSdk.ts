@@ -1,4 +1,4 @@
-// Type-safe wrapper for the official Pi Network Browser SDK v2.0
+import { apiClient } from './apiClient';
 
 export interface PiAuthResult {
   accessToken: string;
@@ -8,12 +8,23 @@ export interface PiAuthResult {
   };
 }
 
+interface PiPaymentCallbacks {
+  onReadyForServerApproval: (paymentId: string) => void;
+  onReadyForServerCompletion: (paymentId: string, txid: string) => void;
+  onCancel: (paymentId: string) => void;
+  onError: (error: Error, payment?: unknown) => void;
+}
+
 interface PiSDK {
   init: (config: { version: string; sandbox?: boolean }) => void;
   authenticate: (
     scopes: string[],
-    onIncompletePaymentFound: (payment: unknown) => void
+    onIncompletePaymentFound: (payment: any) => void
   ) => Promise<PiAuthResult>;
+  createPayment: (
+    paymentData: { amount: number; memo: string; metadata: Record<string, unknown> },
+    callbacks: PiPaymentCallbacks
+  ) => void;
 }
 
 declare global {
@@ -41,8 +52,7 @@ export function initPiSdk(): boolean {
 }
 
 /**
- * Authenticates strictly via Pi SDK requesting minimal scope ('username').
- * Complies with Pi Mainnet Listing Guidelines (Use Only Pi Authentication & Limit Data Collection).
+ * Authenticates via Pi SDK requesting 'username' and 'payments' (for optional supporter tips).
  */
 export async function authenticateWithPi(): Promise<PiAuthResult> {
   if (!initPiSdk() || !window.Pi) {
@@ -51,8 +61,67 @@ export async function authenticateWithPi(): Promise<PiAuthResult> {
     );
   }
 
-  return window.Pi.authenticate(['username'], (incompletePayment) => {
-    // MVP uses zero payments; callback stub retained for Pi SDK contract compliance.
-    console.info('[Starfield] Incomplete payment callback:', incompletePayment);
+  return window.Pi.authenticate(['username', 'payments'], async (incompletePayment) => {
+    try {
+      const paymentId = incompletePayment?.identifier;
+      const txid = incompletePayment?.transaction?.txid;
+      if (paymentId && txid) {
+        await apiClient.post('/api/v1/payments/complete', { payment_id: paymentId, txid });
+      }
+    } catch (err) {
+      console.warn('[Starfield] Incomplete payment recovery note:', err);
+    }
   });
+}
+
+/**
+ * Initiates a 100% voluntary, non-pay-to-win Pi supporter tip via Pi.createPayment.
+ */
+export function createPiSupporterTip(
+  amount: number,
+  onStatus: (status: string, isError?: boolean) => void
+): void {
+  if (!initPiSdk() || !window.Pi) {
+    onStatus('Open starfieldcosmicchess.com inside Pi Browser to send a Pi tip.', true);
+    return;
+  }
+
+  onStatus(`Opening Pi Wallet for ${amount} Pi supporter tip...`);
+
+  window.Pi.createPayment(
+    {
+      amount,
+      memo: `Starfield Cosmic Chess — Community Supporter Tip (${amount} Pi)`,
+      metadata: { purpose: 'community_tip_jar', cosmetic_badge: 'galactic_supporter' },
+    },
+    {
+      onReadyForServerApproval: async (paymentId) => {
+        try {
+          onStatus('Approving tip with Starfield server...');
+          await apiClient.post('/api/v1/payments/approve', { payment_id: paymentId });
+        } catch (err: unknown) {
+          onStatus(err instanceof Error ? err.message : 'Approval failed.', true);
+        }
+      },
+      onReadyForServerCompletion: async (paymentId, txid) => {
+        try {
+          onStatus('Completing on-chain Pi tip...');
+          await apiClient.post('/api/v1/payments/complete', {
+            payment_id: paymentId,
+            txid,
+            amount,
+          });
+          onStatus('Thank you, Pioneer! Your Galactic Supporter badge is now unlocked.');
+        } catch (err: unknown) {
+          onStatus(err instanceof Error ? err.message : 'Completion failed.', true);
+        }
+      },
+      onCancel: () => {
+        onStatus('Tip cancelled—no Pi was spent.');
+      },
+      onError: (err) => {
+        onStatus(err?.message || 'Pi payment could not be completed.', true);
+      },
+    }
+  );
 }
